@@ -96,6 +96,16 @@ namespace LiveSplit.UnrealLoads.Games
 			}
 		}
 
+		public override LoadMapDetour GetNewLoadMapDetour() => new HP2LoadMapDetour();
+
+		public override SaveGameDetour GetNewSaveGameDetour() => new HP2SaveGameDetour();
+
+		public override StatusDetour[] GetNewExtraDetours() => new StatusDetour[]
+		{
+			new HP2BeginLoadDetour(),
+			new HP2TickDetour()
+		};
+
 		public override TimerAction[] OnMapLoad(MemoryWatcherList watchers)
 		{
 			var map = (StringWatcher)watchers["map"];

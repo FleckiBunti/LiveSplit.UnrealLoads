@@ -63,7 +63,10 @@
     <Compile Include="Games\GameSupport.cs" />
     <Compile Include="Games\HarryPotter1.cs" />
     <Compile Include="Games\HarryPotter3.cs" />
+    <Compile Include="Games\HarryPotter3Detours.cs" />
+    <Compile Include="Games\HarryPotter3Speed.cs" />
     <Compile Include="Games\HarryPotter2.cs" />
+    <Compile Include="Games\HarryPotter2Detours.cs" />
     <Compile Include="Games\KlingonHonorGuard.cs" />
     <Compile Include="Games\TheHeatOfWar.cs" />
     <Compile Include="Games\XCOM_Enforcer.cs" />

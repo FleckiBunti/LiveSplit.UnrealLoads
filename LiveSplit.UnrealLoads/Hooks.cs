@@ -182,7 +182,7 @@ namespace LiveSplit.UnrealLoads
 				"52",                           // push edx
 				"#FF FF FF FF FF",              // call set_map
 				"83 C4 04",                     // add esp,4
-				"C7 05 " + status + loadingMap, // mov dword ptr ds:[<?g_status@@3HA>],1
+				BeforeLoad(),                   //
 				"8B 45 14",                     // mov eax,dword ptr ds:[ebp+14]
 				"50",                           // push eax
 				"8B 4D 10",                     // mov ecx,dword ptr ds:[ebp+10]
@@ -194,7 +194,7 @@ namespace LiveSplit.UnrealLoads
 				"8B 4D F8",                     // mov ecx,dword ptr ds:[ebp-8]
 				"#FF FF FF FF FF",              // call dword ptr ds:[B3780]
 				"89 45 F4",                     // mov dword ptr ds:[ebp-C],eax
-				"C7 05 " + status + none,       // mov dword ptr ds:[<?g_status@@3HA>],0
+				AfterLoad(),                    //
 				"8B 45 F4",                     // mov eax,dword ptr ds:[ebp-C]
 				"8B E5",                        // mov esp,ebp
 				"5D",                           // pop ebp
@@ -207,6 +207,18 @@ namespace LiveSplit.UnrealLoads
 
 			return bytes.ToArray();
 		}
+
+		/// <summary>
+		/// Instructions executed before the original LoadMap is called (no calls!)
+		/// </summary>
+		protected virtual string BeforeLoad()
+			=> "C7 05 " + StatusPtr.ToBytes().ToHex() + Status.LoadingMap.ToBytes().ToHex(); // mov [status],LoadingMap
+
+		/// <summary>
+		/// Instructions executed after the original LoadMap returned (no rel32 or calls!)
+		/// </summary>
+		protected virtual string AfterLoad()
+			=> "C7 05 " + StatusPtr.ToBytes().ToHex() + Status.None.ToBytes().ToHex(); // mov [status],None
 	}
 
 	public class SaveGameDetour : Detour
@@ -231,12 +243,12 @@ namespace LiveSplit.UnrealLoads
 				"83 EC 08",                         // SUB ESP,8
 				"89 55 F8",                         // MOV DWORD PTR SS:[EBP-8],EDX
 				"89 4D FC",                         // MOV DWORD PTR SS:[EBP-4],ECX
-				"C7 05 " + status + saving,         // MOV DWORD PTR DS:[?g_status@@3HA],2
+				BeforeSave(),                       //
 				"8B 45 08",                         // MOV EAX,DWORD PTR SS:[EBP+8]
 				"50",                               // PUSH EAX
 				"8B 4D FC",                         // MOV ECX,DWORD PTR SS:[EBP-4]
 				"#FF FF FF FF FF",                  // CALL DWORD PTR DS:[SaveGame] (placeholder)
-				"C7 05 " + status + none,           // MOV DWORD PTR DS:[?g_status@@3HA],0
+				AfterSave(),                        //
 				"8B E5",                            // MOV ESP,EBP
 				"5D",                               // POP EBP
 				"C2 04 00"                          // RETN 4
@@ -247,6 +259,29 @@ namespace LiveSplit.UnrealLoads
 
 			return bytes.ToArray();
 		}
+
+		/// <summary>
+		/// Instructions executed before the original SaveGame is called (no calls!)
+		/// </summary>
+		protected virtual string BeforeSave()
+			=> "C7 05 " + StatusPtr.ToBytes().ToHex() + Status.Saving.ToBytes().ToHex(); // mov [status],Saving
+
+		/// <summary>
+		/// Instructions executed after the original SaveGame returned (no rel32 or calls!)
+		/// </summary>
+		protected virtual string AfterSave()
+			=> "C7 05 " + StatusPtr.ToBytes().ToHex() + Status.None.ToBytes().ToHex(); // mov [status],None
+	}
+
+	/// <summary>
+	/// Game specific detour that shares the status memory with the LoadMap/SaveGame detours.
+	/// </summary>
+	public abstract class StatusDetour : Detour
+	{
+		protected override bool ReadyToInstall => base.ReadyToInstall
+			&& StatusPtr != IntPtr.Zero;
+
+		public IntPtr StatusPtr { get; set; }
 	}
 
 	class SetMapUTF16Function

@@ -56,6 +56,30 @@ namespace LiveSplit.UnrealLoads.Games
 			"hp3_infirmary"
 		};
 
+		readonly HP3GameSpeed _gameSpeed = new HP3GameSpeed();
+
+		public override TimerAction[] OnAttach(Process game)
+		{
+			_gameSpeed.Attach(game);
+			return null;
+		}
+
+		public override TimerAction[] OnUpdate(Process game, MemoryWatcherList watchers)
+		{
+			_gameSpeed.Update(game);
+			return null;
+		}
+
+		public override LoadMapDetour GetNewLoadMapDetour() => new HP3LoadMapDetour();
+
+		public override SaveGameDetour GetNewSaveGameDetour() => new HP3SaveGameDetour();
+
+		public override StatusDetour[] GetNewExtraDetours() => new StatusDetour[]
+		{
+			new HP3TickDetour(),
+			new HP3DrawDetour()
+		};
+
 		public override TimerAction[] OnMapLoad(MemoryWatcherList watchers)
 		{
 			var map = (StringWatcher)watchers["map"];

@@ -37,6 +37,8 @@ namespace LiveSplit.UnrealLoads.Games
 
 		public virtual SaveGameDetour GetNewSaveGameDetour() => new SaveGameDetour();
 
+		public virtual StatusDetour[] GetNewExtraDetours() => new StatusDetour[0];
+
 		public string[] GetHookModules()
 		{
 			var list = new List<string>();

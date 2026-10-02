@@ -16,7 +16,9 @@ namespace LiveSplit.UnrealLoads
 	{
 		None = 0,
 		LoadingMap = 1,
-		Saving = 2
+		Saving = 2,
+		PostLoad = 3, // map loaded, but the game is still stalled finishing the load (e.g. precaching)
+		Fading = 4 // inside LoadMap, but still playing the fade-out before loading (not a load)
 	}
 
 	public class GameMemory : IGameMemory
@@ -47,6 +49,7 @@ namespace LiveSplit.UnrealLoads
 		IntPtr _setMapPtr;
 		LoadMapDetour _loadMapHook;
 		SaveGameDetour _saveGameHook;
+		StatusDetour[] _extraHooks = new StatusDetour[0];
 		IntPtr _statusPtr;
 		IntPtr _mapPtr;
 
@@ -110,6 +113,8 @@ namespace LiveSplit.UnrealLoads
 					bool prevIsLoading = false;
 					var map = string.Empty;
 					var prevMap = string.Empty;
+					string pendingMap = null;
+					var pendingActions = new List<TimerAction>();
 
 					DoTimerAction(Game.OnAttach(game));
 
@@ -120,18 +125,24 @@ namespace LiveSplit.UnrealLoads
 
 						var gameSupportIsLoading = Game.IsLoading(_watchers);
 						if (!gameSupportIsLoading.HasValue)
-							isLoading = _status.Current != Status.None;
+							isLoading = _status.Current != Status.None && _status.Current != Status.Fading;
 						else
 							isLoading = gameSupportIsLoading.Value;
 
 						Debug.WriteLineIf(_status.Changed, string.Format("[NoLoads] Status changed from {1} to {2} - {0}", frameCounter, _status.Old, _status.Current));
 
-						if (_map.Changed)
-						{
-							string mapname = Path.GetFileNameWithoutExtension(_map.Current);
-							string extension = Path.GetExtension(_map.Current);
+						// While a game plays the fade-out, the actions are held back so the split happens after the fade
+						var fading = _status.Current == Status.Fading;
 
-							Debug.WriteLine($"Map changed to {_map.Current}, Type: {extension}");
+						if (_map.Changed)
+							pendingMap = _map.Current;
+
+						if (pendingMap != null && !fading)
+						{
+							string mapname = Path.GetFileNameWithoutExtension(pendingMap);
+							string extension = Path.GetExtension(pendingMap);
+
+							Debug.WriteLine($"[NoLoads] Map changed to {pendingMap}, Type: {extension}");
 
 							if ((Game.Maps.Count == 0 || Game.Maps.Contains(mapname))
 								&& (Game.MapExtension == null || extension.Equals(Game.MapExtension, StringComparison.OrdinalIgnoreCase)))
@@ -139,15 +150,29 @@ namespace LiveSplit.UnrealLoads
 								prevMap = map;
 								map = mapname;
 
-								_uiThread.Post(d => OnMapChange?.Invoke(this, prevMap, map), null);
+								var from = prevMap;
+								var to = map;
+								_uiThread.Post(d => OnMapChange?.Invoke(this, from, to), null);
 
 								Debug.WriteLine("[NoLoads] Map is changing from \"{0}\" to \"{1}\" - {2}", prevMap, map, frameCounter);
 							}
+
+							pendingMap = null;
 						}
 
-						if (_status.Changed && _status.Current == Status.LoadingMap)
+						// a map load starts with Fading (if the game has a fade-out) or directly with LoadingMap
+						if (_status.Changed && _status.Old != Status.Fading
+							&& (_status.Current == Status.LoadingMap || _status.Current == Status.Fading))
 						{
-							DoTimerAction(Game.OnMapLoad(_watchers));
+							var actions = Game.OnMapLoad(_watchers);
+							if (actions != null)
+								pendingActions.AddRange(actions);
+						}
+
+						if (pendingActions.Count > 0 && !fading)
+						{
+							DoTimerAction(pendingActions);
+							pendingActions.Clear();
 						}
 
 						if (isLoading != prevIsLoading)
@@ -298,7 +323,7 @@ namespace LiveSplit.UnrealLoads
 			game.Suspend();
 			try
 			{
-				_statusPtr = game.AllocateMemory(sizeof(int));
+				_statusPtr = game.AllocateMemory(24); // status + spare memory for StatusDetours
 				_mapPtr = game.AllocateMemory(MAP_SIZE);
 
 				_loadMapHook = Game.GetNewLoadMapDetour();
@@ -320,8 +345,14 @@ namespace LiveSplit.UnrealLoads
 					_saveGameHook.StatusPtr = _statusPtr;
 				}
 
+				_extraHooks = Game.GetNewExtraDetours();
+				foreach (var hook in _extraHooks)
+					hook.StatusPtr = _statusPtr;
+
 				_loadMapHook?.Install(game);
 				_saveGameHook?.Install(game);
+				foreach (var hook in _extraHooks)
+					hook.Install(game);
 
 				Debug.WriteLine($"[NoLoads] Status: {_statusPtr.ToString("X")} Map: {_mapPtr.ToString("X")} ");
 				Debug.WriteLine($"[NoLoads] FakeSaveGame: {_saveGameHook?.InjectedFuncPtr.ToString("X")} FakeLoadMap: {_loadMapHook?.InjectedFuncPtr.ToString("X")}");
@@ -374,6 +405,12 @@ namespace LiveSplit.UnrealLoads
 
 			if (_saveGameHook != null && _saveGameHook.Installed)
 				_saveGameHook.Uninstall(game);
+
+			foreach (var hook in _extraHooks)
+			{
+				if (hook.Installed)
+					hook.Uninstall(game);
+			}
 		}
 
 		void FreeMemory(Process game)
@@ -386,6 +423,8 @@ namespace LiveSplit.UnrealLoads
 			game.FreeMemory(_setMapPtr);
 			_saveGameHook?.FreeMemory(game);
 			_loadMapHook?.FreeMemory(game);
+			foreach (var hook in _extraHooks)
+				hook.FreeMemory(game);
 		}
 	}
 }

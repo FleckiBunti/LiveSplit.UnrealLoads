@@ -54,6 +54,17 @@ namespace LiveSplit.UnrealLoads.Games
 			"Snapes_Office"
 		};
 
+		// LoadMap has the same fade-out as HP2, so the HP2 detours apply unchanged.
+		public override LoadMapDetour GetNewLoadMapDetour() => new HP2LoadMapDetour();
+
+		public override SaveGameDetour GetNewSaveGameDetour() => new HP2SaveGameDetour();
+
+		public override StatusDetour[] GetNewExtraDetours() => new StatusDetour[]
+		{
+			new HP2BeginLoadDetour(),
+			new HP2TickDetour()
+		};
+
 		public override TimerAction[] OnDetach(Process game)
 		{
 			return new TimerAction[] { TimerAction.UnpauseGameTime };

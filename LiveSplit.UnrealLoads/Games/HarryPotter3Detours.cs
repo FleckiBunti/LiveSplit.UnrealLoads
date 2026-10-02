@@ -4,7 +4,7 @@ namespace LiveSplit.UnrealLoads.Games
 {
 	// HP3 keeps loading for up to ~1 s after UGameEngine::LoadMap returns due to precaching
 	// We pause the timer (Status.PostLoad) until a tick finishes without precaching, and the
-	// paused ticks get DeltaSeconds = 0 to ensure a consistent gamestate.
+	// paused ticks get a fixed DeltaSeconds of 0.0005 to ensure a consistent gamestate.
 	//
 	// Flag (StatusPtr + 4): set when a Draw precached during the current tick.
 
@@ -51,7 +51,7 @@ namespace LiveSplit.UnrealLoads.Games
 				"51",                               // +03 push ecx                  ; [ebp-4] = this
 				"83 3D " + status + "03",           // +04 cmp dword ptr [status],PostLoad
 				"75 11",                            // +0B jne +1E
-				"C7 45 08 00000000",                // +0D mov dword ptr [ebp+8],0   ; DeltaSeconds = 0 (engine clamps to 0.0005)
+				"C7 45 08 6F12033A",                // +0D mov dword ptr [ebp+8],0.0005f ; DeltaSeconds = 0.0005
 				"C7 05 " + flag + "00000000",       // +14 mov dword ptr [flag],0
 				"FF 75 08",                         // +1E push dword ptr [ebp+8]
 				"8B 4D FC",                         // +21 mov ecx,dword ptr [ebp-4]

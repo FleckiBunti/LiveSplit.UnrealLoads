@@ -391,8 +391,8 @@ namespace LiveSplit.UnrealLoads
 			}
 			finally
 			{
+				// do not free memory; a function that is wrapped by a detour can still run and would segfault. the memory is released when the game is quit
 				game.Resume();
-				FreeMemory(game);
 			}
 
 			return true;

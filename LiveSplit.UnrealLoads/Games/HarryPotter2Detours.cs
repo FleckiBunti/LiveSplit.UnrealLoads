@@ -5,7 +5,7 @@ namespace LiveSplit.UnrealLoads.Games
 {
 	// Used by HP1 and HP2 (Unreal Engine 1).
 	//
-	// StatusPtr: +4 flag (first full tick after a load/save is running); +8 TSC when pause started; +16 paused TSC cycles
+	// StatusPtr: +4 flag (first full tick after a load is running); +8 TSC when pause started; +16 paused TSC cycles
 
 	static class HP2Asm
 	{
@@ -56,18 +56,19 @@ namespace LiveSplit.UnrealLoads.Games
 
 	public class HP2SaveGameDetour : SaveGameDetour
 	{
-		// Start a pause unless one is already running (save right after a load).
+		// Saves during gameplay are not paused due to savebook superjump
 		protected override string BeforeSave() => string.Join("\n",
 			"83 3D " + HP2Asm.Status(StatusPtr) + "00",                    // +00 cmp dword ptr [status],None
-			"75 0D",                                                       // +07 jne +16
-			HP2Asm.StartPause(StatusPtr),                                  // +09 start = rdtsc
-			"C7 05 " + HP2Asm.Status(StatusPtr) + HP2Asm.Hex(Status.Saving) // +16 mov [status],Saving
+			"74 0A",                                                       // +07 je +13                  ; gameplay save: timed
+			"C7 05 " + HP2Asm.Status(StatusPtr) + HP2Asm.Hex(Status.Saving) // +09 mov [status],Saving    ; pause keeps running
 		);
 
 		// The pause keeps running into PostLoad (the next frame precaches).
 		protected override string AfterSave() => string.Join("\n",
-			"C7 05 " + HP2Asm.Status(StatusPtr) + HP2Asm.Hex(Status.PostLoad), // mov [status],PostLoad
-			"C7 05 " + HP2Asm.Flag(StatusPtr) + "00000000"                 // mov [flag],0
+			"83 3D " + HP2Asm.Status(StatusPtr) + "02",                    // +00 cmp dword ptr [status],Saving
+			"75 14",                                                       // +07 jne +1D
+			"C7 05 " + HP2Asm.Status(StatusPtr) + HP2Asm.Hex(Status.PostLoad), // +09 mov [status],PostLoad
+			"C7 05 " + HP2Asm.Flag(StatusPtr) + "00000000"                 // +13 mov [flag],0
 		);
 	}
 
